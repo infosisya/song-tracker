@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Sing Tracker — PWA</title>
+<meta name="description" content="Singing practice tracker PWA — start/stop activities and subactivities, reps, thresholds, streaks." />
+<style>
+  :root{
+    --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#7dd3fc;
+    --good:#10b981; --danger:#ef4444; --glass: rgba(255,255,255,0.03);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071026 0%, #061120 100%);color:#e6eef6}
+  .app {max-width:860px;margin:0 auto;padding:16px;}
+  header{display:flex;align-items:center;gap:12px}
+  header h1{margin:0;font-size:20px}
+  .card{background:var(--card);border-radius:12px;padding:12px;margin:12px 0;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+  .row{display:flex;gap:8px;align-items:center}
+  .spacer{flex:1}
+  button{background:var(--glass);border:1px solid rgba(255,255,255,0.04);color:inherit;padding:8px 10px;border-radius:8px;font-weight:600}
+  .btn-start{background:linear-gradient(90deg,#064e3b,#10b981); color:#00221a}
+  .btn-stop{background:linear-gradient(90deg,#6b0213,#ef4444);color:#210006}
+  input,select{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+  label{font-size:13px;color:var(--muted)}
+  .small{font-size:13px;color:var(--muted)}
+  .subrow{display:flex;flex-direction:column;gap:6px}
+  .subactivity{padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;display:flex;flex-direction:column;gap:6px}
+  .pill{padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:12px}
+  .good{color:var(--good)}
+  .danger{color:var(--danger)}
+  .muted{color:var(--muted)}
+  .linkish{background:transparent;border:0;color:var(--accent);font-weight:700}
+  footer{font-size:12px;color:var(--muted);text-align:center;margin-top:18px}
+  .toggle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+  .history-list{max-height:180px;overflow:auto;padding-right:6px}
+  @media (max-width:520px){
+    header h1{font-size:18px}
+    .app{padding:10px}
+  }
+</style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header>
+      <img src="" id="logo" alt="" style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#0369a1,#0ea5e9)"/>
+      <div>
+        <h1>Sing Tracker</h1>
+        <div class="small">Start/stop sessions, sub-activities, reps, thresholds & streaks</div>
+      </div>
+      <div class="spacer"></div>
+      <button id="exportBtn" title="Export JSON/CSV">Export</button>
+    </header>
+
+    <section class="card" id="mainCard">
+      <div class="row">
+        <div style="min-width:160px">
+          <label>Main activity name</label><br/>
+          <input id="activityName" placeholder="Singing" />
+        </div>
+        <div style="min-width:120px">
+          <label>Total time</label><br/>
+          <div id="totalTime" class="pill">0m 00s</div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div style="text-align:right">
+          <label>Today goal</label><br/>
+          <div class="small"><input id="dailyGoal" type="number" style="width:80px" /> min</div>
+          <div style="height:8px"></div>
+          <button id="mainToggle" class="btn-start">Start</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <div class="small">Streak: <span id="streakCount">0</span> days</div>
+        <div class="small"> • Weekly goal met: <span id="weeklyMet">no</span></div>
+        <div class="spacer"></div>
+        <button id="addSubBtn" class="linkish">+ Add subactivity</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="flex:1"><label>Subactivities</label></div>
+        <div style="flex-basis:220px;display:flex;gap:6px;align-items:center">
+          <input id="filterText" placeholder="Filter subactivities" />
+        </div>
+      </div>
+
+      <div id="subsContainer" class="subrow"></div>
+
+      <div style="margin-top:10px" id="addSubForm" hidden>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="newSubName" placeholder="Subactivity name (e.g., Warmups)" />
+          <input id="newSubMins" type="number" placeholder="threshold mins" style="width:120px" />
+          <input id="newSubReps" type="number" placeholder="threshold reps" style="width:120px" />
+          <button id="createSub" class="linkish">Create</button>
+          <button id="cancelCreate" class="linkish">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label>History (recent sessions)</label>
+        <div class="spacer"></div>
+        <button id="clearAll" class="linkish">Clear all data</button>
+      </div>
+      <div id="history" class="history-list small"></div>
+    </section>
+
+    <section class="card">
+      <label>Backup / Restore</label>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="exportJSON">Download JSON</button>
+        <button id="downloadCSV">Download CSV</button>
+        <input type="file" id="importFile" />
+      </div>
+      <div class="small" style="margin-top:8px">Data is stored only locally in this browser (localStorage). Use Export to backup.</div>
+    </section>
+
+    <footer>Tip: In Safari tap Share → <strong>"Add to Home Screen"</strong> to install this as an app.</footer>
+  </div>
+
+<script>
+/* ---------- Data model & persistence ---------- */
+const STORAGE_KEY = 'sing-tracker-v1';
+
+function nowIso(){ return new Date().toISOString(); }
+function loadState(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    // migration guards
+    if(!parsed.activityName) parsed.activityName = "Singing";
+    if(!parsed.dailyGoal) parsed.dailyGoal = 30;
+    return parsed;
+  } catch(e){ console.error('load error', e); return defaultState(); }
+}
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function defaultState(){
+  return {
+    activityName: 'Singing',
+    sessions: [],    // array of {id, startISO, endISO|null}
+    subactivities: [], // {id,name,sessions:[],reps:0,thresholdMinutes?,thresholdReps?}
+    dailyGoal: 30,
+    weeklyGoal: 150
+  };
+}
+
+/* ---------- Utility helpers ---------- */
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function secsToHMS(s){
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  const sec = s%60;
+  if (h>0) return `${h}h ${String(m).padStart(2,'0')}m`;
+  if (m>0) return `${m}m ${String(sec).padStart(2,'0')}s`;
+  return `${sec}s`;
+}
+function parseISO(iso){ return iso ? new Date(iso) : null; }
+function overlapSeconds(session, dayStart, dayEnd){
+  const s = parseISO(session.startISO);
+  const e = parseISO(session.endISO) || new Date();
+  const st = s < dayStart ? dayStart : s;
+  const en = e > dayEnd ? dayEnd : e;
+  return Math.max(0, (en - st)/1000);
+}
+
+/* ---------- Business logic ---------- */
+let state = loadState();
+
+/* Main sessions functions */
+function startActivity(){
+  if (isMainRunning()) return;
+  state.sessions.push({id:uid(), startISO: nowIso(), endISO: null});
+  saveState();
+}
+function stopActivity(){
+  const s = state.sessions[state.sessions.length-1];
+  if (!s || s.endISO) return;
+  s.endISO = nowIso();
+  saveState();
+}
+function isMainRunning(){ const s = state.sessions[state.sessions.length-1]; return s && !s.endISO; }
+function mainTotalSeconds(){
+  const base = state.sessions.reduce((acc,s)=> acc + ((parseISO(s.endISO||new Date()) - parseISO(s.startISO))/1000), 0);
+  const subs = state.subactivities.reduce((acc,sub)=> acc + sub.sessions.reduce((a,ss)=> a + ((parseISO(ss.endISO||new Date()) - parseISO(ss.startISO))/1000),0), 0);
+  return base + subs;
+}
+
+/* Subactivity functions */
+function addSub(name, mins, reps){
+  state.subactivities.push({
+    id: uid(),
+    name: name || 'Untitled',
+    sessions: [],
+    reps: reps?Number(reps):0,
+    thresholdMinutes: mins?Number(mins):null,
+    thresholdReps: reps?Number(reps):null
+  });
+  saveState();
+}
+function toggleSubRun(subId){
+  const sub = state.subactivities.find(s=>s.id===subId);
+  if(!sub) return;
+  const last = sub.sessions[sub.sessions.length-1];
+  if (last && !last.endISO) {
+    last.endISO = nowIso();
+  } else {
+    sub.sessions.push({id:uid(), startISO:nowIso(), endISO:null});
+  }
+  saveState();
+}
+function addRepsToSub(subId, n){
+  const sub = state.subactivities.find(s=>s.id===subId);
+  if(!sub) return;
+  sub.reps += Number(n);
+  saveState();
+}
+function totalSecondsForSub(sub){
+  return sub.sessions.reduce((acc,s)=> acc + ((parseISO(s.endISO||new Date()) - parseISO(s.startISO))/1000), 0);
+}
+function isSubThresholdReached(sub){
+  const timeReached = sub.thresholdMinutes && (totalSecondsForSub(sub) >= sub.thresholdMinutes*60);
+  const repsReached = sub.thresholdReps && (sub.reps >= sub.thresholdReps);
+  return Boolean(timeReached || repsReached);
+}
+
+/* Streak logic */
+function secondsOnDate(date){
+  // sum seconds in main sessions + sub sessions that overlap the day
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayEnd = new Date(dayStart.getTime() + 24*3600*1000);
+  let total = 0;
+  for(const s of state.sessions) total += overlapSeconds(s, dayStart, dayEnd);
+  for(const sub of state.subactivities){
+    for(const ss of sub.sessions) total += overlapSeconds(ss, dayStart, dayEnd);
+  }
+  return total;
+}
+function currentDailyStreak(){
+  const cal = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - n);
+  let streak = 0;
+  let i = 0;
+  while(true){
+    const day = cal(new Date(), i);
+    const secs = secondsOnDate(day);
+    if (secs >= (state.dailyGoal || 30)*60) { streak++; i++; } else break;
+  }
+  return streak;
+}
+function weeklyGoalMet(){
+  let total = 0;
+  for(let i=0;i<7;i++){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    total += secondsOnDate(d);
+  }
+  return total >= (state.weeklyGoal || 150)*60;
+}
+
+/* ---------- UI rendering & events ---------- */
+const el = id => document.getElementById(id);
+
+function renderAll(){
+  // header/activity name
+  el('activityName').value = state.activityName;
+  el('dailyGoal').value = state.dailyGoal;
+  el('totalTime').textContent = secsToHMS(mainTotalSeconds());
+
+  // main button
+  const mainBtn = el('mainToggle');
+  if (isMainRunning()){ mainBtn.textContent = 'Stop'; mainBtn.className='btn-stop'; } 
+  else { mainBtn.textContent = 'Start'; mainBtn.className='btn-start'; }
+
+  // streaks
+  el('streakCount').textContent = currentDailyStreak();
+  el('weeklyMet').textContent = weeklyGoalMet() ? 'yes' : 'no';
+
+  // subactivities list
+  const filter = el('filterText').value.trim().toLowerCase();
+  const container = el('subsContainer');
+  container.innerHTML = '';
+  for(const sub of state.subactivities){
+    if(filter && !sub.name.toLowerCase().includes(filter)) continue;
+    const subWrap = document.createElement('div');
+    subWrap.className = 'subactivity';
+    const running = sub.sessions.length && !sub.sessions[sub.sessions.length-1].endISO;
+    const ts = totalSecondsForSub(sub);
+    subWrap.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="flex:1"><strong>${escapeHtml(sub.name)}</strong>
+          <div class="small muted">Total: ${secsToHMS(ts)} • Reps: ${sub.reps}</div>
+        </div>
+        <div style="min-width:120px;text-align:right">
+          <div class="small">${sub.thresholdMinutes?sub.thresholdMinutes+'m':''}${sub.thresholdReps?(' • '+sub.thresholdReps+' reps'):''}</div>
+          <div style="height:6px"></div>
+          <button data-sub="${sub.id}" class="${running? 'btn-stop':'btn-start'}">${running? 'Stop':'Start'}</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input placeholder='add reps' data-repinput="${sub.id}" style="width:90px" />
+        <button data-addrep="${sub.id}">+Add</button>
+        <div class="spacer"></div>
+        <div>${isSubThresholdReached(sub) ? '<span class="good">Completed ✅</span>' : '<span class="muted">Not completed</span>'}</div>
+      </div>
+    `;
+    container.appendChild(subWrap);
+  }
+
+  // history
+  const historyEl = el('history');
+  historyEl.innerHTML = '';
+  // show recent main sessions
+  const allSessions = [];
+  for(const s of state.sessions) allSessions.push({type:'main',start:s.startISO,end:s.endISO});
+  for(const sub of state.subactivities) for(const s of sub.sessions) allSessions.push({type:'sub',sub:sub.name,start:s.startISO,end:s.endISO});
+  allSessions.sort((a,b)=> (b.start||'').localeCompare(a.start||''));
+  for(const s of allSessions.slice(0,40)){
+    const start = parseISO(s.start);
+    const end = parseISO(s.end) || new Date();
+    const dur = Math.round((end - start)/1000);
+    const row = document.createElement('div');
+    row.innerHTML = `<div style="display:flex;gap:8px"><div style="min-width:140px">${start.toLocaleString()}</div><div class="spacer"></div><div>${s.type==='main'?'Main':escapeHtml(s.sub)} • ${secsToHMS(dur)}</div></div>`;
+    historyEl.appendChild(row);
+  }
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+
+/* ---------- Event bindings ---------- */
+el('activityName').addEventListener('input', e=>{ state.activityName = e.target.value || 'Singing'; saveState(); });
+el('dailyGoal').addEventListener('change', e=>{ state.dailyGoal = Number(e.target.value)||30; saveState(); renderAll(); });
+el('filterText').addEventListener('input', ()=>renderAll());
+
+el('mainToggle').addEventListener('click', ()=>{
+  if (isMainRunning()) stopActivity(); else startActivity();
+  saveState(); renderAll();
+});
+
+el('addSubBtn').addEventListener('click', ()=>{ el('addSubForm').hidden = false; el('newSubName').focus(); });
+el('cancelCreate').addEventListener('click', ()=>{ el('addSubForm').hidden = true; });
+
+el('createSub').addEventListener('click', ()=>{
+  const name = el('newSubName').value.trim(); const mins = el('newSubMins').value; const reps = el('newSubReps').value;
+  if(!name){ alert('Enter a name'); return; }
+  addSub(name, mins||null, reps||null);
+  el('newSubName').value=''; el('newSubMins').value=''; el('newSubReps').value=''; el('addSubForm').hidden = true;
+  renderAll();
+});
+
+// delegate for sub start/stop and add reps
+el('subsContainer').addEventListener('click', (e)=>{
+  const subId = e.target.dataset.sub;
+  if(subId){ toggleSubRun(subId); renderAll(); return; }
+  const addId = e.target.dataset.addrep;
+  if(addId){
+    const input = document.querySelector(`[data-repinput="${addId}"]`);
+    const v = input && input.value.trim();
+    if(!v) { alert('Enter reps'); return; }
+    addRepsToSub(addId, Number(v));
+    input.value='';
+    renderAll();
+  }
+});
+
+/* Export / Import / Clear / CSV */
+el('exportBtn').addEventListener('click', ()=>{ el('exportJSON').click(); });
+el('exportJSON').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download = 'sing-tracker.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+el('downloadCSV').addEventListener('click', ()=>{ downloadCSV(); });
+el('importFile').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  try {
+    const text = await f.text();
+    const parsed = JSON.parse(text);
+    if(!confirm('This will replace local data. Continue?')) return;
+    state = parsed; saveState(); renderAll(); alert('Imported');
+  } catch(err){ alert('Import failed: ' + err); }
+});
+el('clearAll').addEventListener('click', ()=>{ if(confirm('Erase all local data?')){ state = defaultState(); saveState(); renderAll(); } });
+
+/* CSV exporter */
+function downloadCSV(){
+  const rows = [['type','subactivity','start','end','duration_s']];
+  for(const s of state.sessions) rows.push(['main','', s.startISO, s.endISO||'', Math.round(((s.endISO?new Date(s.endISO):new Date()) - new Date(s.startISO))/1000)]);
+  for(const sub of state.subactivities){
+    for(const s of sub.sessions) rows.push(['sub', sub.name, s.startISO, s.endISO||'', Math.round(((s.endISO?new Date(s.endISO):new Date()) - new Date(s.startISO))/1000)]);
+  }
+  const csv = rows.map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='sing-tracker.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* periodic UI tick for running timers */
+setInterval(()=>{
+  // update total & running displays
+  if(isMainRunning() || state.subactivities.some(s=>s.sessions.length && !s.sessions[s.sessions.length-1].endISO)) {
+    saveState();
+    renderAll();
+  }
+}, 1000);
+
+/* initial render */
+renderAll();
+
+/* Helpful: auto-save on page unload */
+window.addEventListener('beforeunload', ()=> saveState());
+
+/* End of script */
+</script>
+</body>
+</html>
