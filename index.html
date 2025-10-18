@@ -77,7 +77,7 @@
         <div class="small">Streak: <span id="streakCount">0</span> days</div>
         <div class="small"> • Weekly goal met: <span id="weeklyMet">no</span></div>
         <div class="spacer"></div>
-        <button id="addSubBtn" class="linkish">+ Add subactivity</button>
+        <button id="addSubBtn" class="linkish">+ Add song</button>
       </div>
     </section>
 
@@ -93,7 +93,7 @@
 
       <div style="margin-top:10px" id="addSubForm" hidden>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input id="newSubName" placeholder="Subactivity name (e.g., Warmups)" />
+          <input id="newSubName" placeholder="Song name (e.g., Warmups)" />
           <input id="newSubMins" type="number" placeholder="threshold mins" style="width:120px" />
           <input id="newSubReps" type="number" placeholder="threshold reps" style="width:120px" />
           <button id="createSub" class="linkish">Create</button>
@@ -421,3 +421,4 @@ window.addEventListener('beforeunload', ()=> saveState());
 </script>
 </body>
 </html>
+
